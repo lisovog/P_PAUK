@@ -1,0 +1,22 @@
+# Optional hardware-specific extensions for Linux hosts.
+# Enable with: docker compose -f docker-compose.yml -f docker-compose.linux-hw.yml --profile linux-hw up
+
+services:
+  web-app:
+    devices:
+      - /dev:/dev  # USB device access for ESP32 flashing
+    volumes:
+      - type: bind
+        source: /sys/class
+        target: /host_sys_class
+        read_only: true
+      - type: bind
+        source: /etc/hostname
+        target: /host/hostname
+        read_only: true
+  status-event-sender:
+    volumes:
+      - type: bind
+        source: /sys/class
+        target: /host_sys_class
+        read_only: true

@@ -1,0 +1,198 @@
+{
+  "ble_mac_prefixes": [
+    "C3:00:00"
+  ],
+  "ble_scan_interval_ms": 80,
+  "ble_scan_window_ms": 75,
+  "ble_dedup_timer_seconds": 1.0,
+  "ble_batch_timer": 5,
+  "default_mesh_id": "4F:53:41:33:BE:EF",
+  "default_timer_group_id": 1,
+  "ble_rssi_threshold": -95,
+  "ble_batch_size": 50,
+  "capture_raw": false,
+  "best_seen_window": 5,
+  "database": {
+    "host": "timescale-database",
+    "port": 5432,
+    "database": "bledb",
+    "user": "bleuser",
+    "password": "blepass"
+  },
+  "mqtt": {
+    "host": "mqtt-broker",
+    "port": 1883
+  },
+  "server_endpoint": "https://proxy.timeline.events/api/v1/mishka/tagevent",
+  "endpoint_company_name": "1a7b3f9e2d8c1a7b3f9e2d8c1a7b3f9",
+  "endpoint_batch_size": 500,
+  "endpoint_batch_timer": 60,
+  "upload_data_to_endpoint": false,
+  "status_event_endpoint": "https://proxy.timeline.events/api/v1/mishka/statusevent",
+  "status_event_frequency": 300,
+  "status_event_enabled": false,
+  "service_intervals": {
+    "config_check_interval": 30,
+    "device_monitor_sync_interval": 5
+  },
+  "ntp_config": {
+    "servers": "pool.ntp.org"
+  },
+  "logging": {
+    "driver": "json-file",
+    "max_size": "10m",
+    "max_files": 3
+  },
+  "device_serial": "AUTO_DETECT",
+  "device_name": "AUTO_DETECT",
+  "device_mac": "AUTO_DETECT",
+  "device_antenna_ids": [],
+  "hub_info": {
+    "mac": "",
+    "mesh": "",
+    "nodeId": "",
+    "proc": ""
+  },
+  "device_info": {
+    "note": "Device information is auto-detected by device management API and stored here for reuse"
+  },
+  "network_info": {
+    "wifi": {
+      "gateway": "",
+      "ipAddress": "",
+      "ssid": "",
+      "subnetMask": "",
+      "signalStrength": ""
+    },
+    "lan": {
+      "gateway": "",
+      "ipAddress": "Not available",
+      "subnetMask": "Not available"
+    }
+  },
+  "wifi_networks": [
+    {
+      "ssid": "Loading...",
+      "password": "112578Gl",
+      "priority": 5,
+      "enabled": true,
+      "security": "WPA3",
+      "note": "Greg mobile"
+    }
+  ],
+  "system_ota": {
+    "github_repo": "lisovog/MISHKA",
+    "github_token": "",
+    "ghcr_namespace": "lisovog",
+    "branch": "main",
+    "version_check_interval": 300,
+    "auto_update": {
+      "enabled": false,
+      "frequency": "24hr",
+      "schedule": "0 2 * * *",
+      "channel": "stable",
+      "next_check_time": null,
+      "last_auto_update": null,
+      "rollback_enabled": true,
+      "stable_releases_only": false
+    },
+    "update_options": {
+      "pull_timeout": 600,
+      "restart_timeout": 120,
+      "health_check_timeout": 300,
+      "rollback_on_failure": true
+    },
+    "protected_services": [
+      "rpi-system-ota-sync",
+      "rpi-update-coordinator",
+      "timescale-database"
+    ],
+    "version_completeness_threshold": 0.5,
+    "last_update_check": "2025-10-02T13:09:09.428320",
+    "current_version": "unknown",
+    "latest_version": "rpi-v2025.10.02.13",
+    "last_auto_update": "2025-10-02T12:30:14.575839"
+  },
+  "ota": {
+    "github_repo": "lisovog/OSA3",
+    "github_token": "",
+    "http_server_port": 8080,
+    "api_server_port": 8000,
+    "log_level": "INFO",
+    "update_check_interval": 3600,
+    "max_concurrent_updates": 5,
+    "retry_attempts": 3,
+    "rollback_timeout": 300,
+    "update_timeout": 600,
+    "firmware_storage_path": "/app/firmware",
+    "auto_update_policy": "manual",
+    "device_groups": {
+      "development": {
+        "policy": "immediate",
+        "max_concurrent": 10,
+        "description": "Development devices - immediate updates"
+      },
+      "staging": {
+        "policy": "immediate",
+        "max_concurrent": 5,
+        "description": "Staging devices - early adopters"
+      },
+      "production": {
+        "policy": "manual",
+        "max_concurrent": 2,
+        "description": "Production devices - manual approval required"
+      }
+    },
+    "security": {
+      "require_checksum_validation": true,
+      "enable_rollback_protection": true,
+      "max_firmware_size_mb": 10
+    }
+  },
+  "github_firmware": {
+    "repo": "lisovog/osa3",
+    "access_token": "",
+    "storage_path": "/app/firmware/esp32",
+    "poll_interval": 300,
+    "auto_download": true,
+    "verify_checksums": true,
+    "cleanup_old_versions": true,
+    "keep_versions": 3,
+    "asset_patterns": [
+      "esp32-firmware-v*.zip"
+    ],
+    "extract_to_version_folders": true,
+    "log_level": "INFO"
+  },
+  "esp32_usb": {
+    "scan_interval": 5,
+    "esptool_timeout": 300,
+    "default_baud_rate": 921600,
+    "auto_detect": true,
+    "supported_chips": [
+      "esp32",
+      "esp32s2",
+      "esp32s3",
+      "esp32c3"
+    ],
+    "mqtt_topic_prefix": "esp32/usb",
+    "device_detection_debounce": 2,
+    "max_flash_attempts": 3,
+    "flash_verify": true,
+    "bootloader_offset": "0x1000",
+    "partition_table_offset": "0x8000",
+    "app_offset": "0x10000",
+    "log_level": "INFO"
+  },
+  "wifi_mac": "2C:CF:67:08:B4:A1",
+  "monitoring": {
+    "enabled": true,
+    "check_interval_seconds": 60,
+    "thresholds": {
+      "cpu_warning": 80.0,
+      "cpu_critical": 95.0,
+      "memory_warning": 85.0,
+      "memory_critical": 95.0
+    }
+  }
+}

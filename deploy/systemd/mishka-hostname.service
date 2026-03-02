@@ -1,0 +1,14 @@
+[Unit]
+Description=MISHKA Hostname Auto-Detection
+After=network-online.target bluetooth.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/lib/mishka/mishka-hostname-detect.sh
+StandardOutput=journal
+StandardError=journal
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

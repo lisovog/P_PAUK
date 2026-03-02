@@ -1,0 +1,24 @@
+[Unit]
+Description=MISHKA OTA Update Service
+Documentation=https://github.com/lisovog/MISHKA
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=simple
+User=root
+Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+Environment="TRIGGER_FILE=/tmp/mishka_ota_trigger.json"
+Environment="LOCK_FILE=/tmp/mishka_ota_update.lock"
+# Must match the deployed working directory used by install/update scripts
+Environment="PROJECT_ROOT=/home/timeline/mishka"
+ExecStart=/opt/mishka/bin/ota-update-watcher.sh
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=mishka-ota-updater
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,82 @@
+# MISHKA Production Docker Compose Override
+# This file is used for production deployments from GitHub Container Registry
+# 
+# Usage:
+#   export VERSION=stable  # Or any release tag
+#   docker compose -f docker-compose.yml -f docker-compose.production.yml pull
+#   docker compose -f docker-compose.yml -f docker-compose.production.yml up -d
+#
+# The VERSION environment variable defaults to 'stable' which is updated by GitHub Actions
+
+services:
+  web-app:
+    image: ghcr.io/lisovog/mishka-web-app:${VERSION:-stable}
+    build: null  # Disable local builds in production
+
+  http-data-uploader:
+    image: ghcr.io/lisovog/mishka-http-data-uploader:${VERSION:-stable}
+    build: null
+
+  mqtt-data-processor:
+    image: ghcr.io/lisovog/mishka-mqtt-processor:${VERSION:-stable}
+    build: null
+
+  device-config-manager:
+    image: ghcr.io/lisovog/mishka-device-config-manager:${VERSION:-stable}
+    build: null
+
+  device-status-monitor:
+    image: ghcr.io/lisovog/mishka-device-status-monitor:${VERSION:-stable}
+    build: null
+
+  status-event-sender:
+    image: ghcr.io/lisovog/mishka-status-event-sender:${VERSION:-stable}
+    build: null
+
+  ota-services:
+    image: ghcr.io/lisovog/mishka-ota-services:${VERSION:-stable}
+    build: null
+
+  wifi-manager:
+    image: ghcr.io/lisovog/mishka-wifi-manager:${VERSION:-stable}
+    build: null
+    profiles: ["linux-hw"]
+
+  health-monitor:
+    image: ghcr.io/lisovog/mishka-health-monitor:${VERSION:-stable}
+    build: null
+
+  github-firmware-sync:
+    image: ghcr.io/lisovog/mishka-github-firmware-sync:${VERSION:-stable}
+    build: null
+
+  usb-device-monitor:
+    image: ghcr.io/lisovog/mishka-usb-device-monitor:${VERSION:-stable}
+    build: null
+
+  update-coordinator:
+    image: ghcr.io/lisovog/mishka-update-coordinator:${VERSION:-stable}
+    build: null
+
+  rpi-system-ota-sync:
+    image: ghcr.io/lisovog/mishka-rpi-system-ota-sync:${VERSION:-stable}
+    build: null
+
+  rpi-update-coordinator:
+    image: ghcr.io/lisovog/mishka-rpi-update-coordinator:${VERSION:-stable}
+    build: null
+
+  # Infrastructure services - these don't have GHCR images, use base definitions
+  timescale-database:
+        image: timescale/timescaledb:2.17.2-pg17
+  mqtt-broker:
+    image: eclipse-mosquitto:latest
+
+  pgweb:
+    image: sosedoff/pgweb:latest
+
+  database-setup:
+        image: timescale/timescaledb:2.17.2-pg17
+  local-ble-scanner:
+    image: ghcr.io/lisovog/mishka-local-ble-scanner:${VERSION:-stable}
+    build: null

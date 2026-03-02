@@ -1,0 +1,57 @@
+# Docker Compose override for production deployments
+# Pulls pre-built images from GitHub Container Registry instead of building locally
+# Usage: docker compose -f docker-compose.yml -f docker-compose.ghcr.yml up -d
+
+services:
+  # Override base images to pull from GHCR
+  mishka-python-base:
+    image: ghcr.io/lisovog/mishka-python-base:${IMAGE_TAG:-stable}
+
+  mishka-service-base:
+    image: ghcr.io/lisovog/mishka-service-base:${IMAGE_TAG:-stable}
+
+  # Override all service images to pull from GHCR
+  web-app:
+    image: ghcr.io/lisovog/mishka-web-app:${IMAGE_TAG:-stable}
+
+  mqtt-data-processor:
+    image: ghcr.io/lisovog/mishka-mqtt-processor:${IMAGE_TAG:-stable}
+
+  http-data-uploader:
+    image: ghcr.io/lisovog/mishka-http-data-uploader:${IMAGE_TAG:-stable}
+
+  device-config-manager:
+    image: ghcr.io/lisovog/mishka-device-config-manager:${IMAGE_TAG:-stable}
+
+  device-status-monitor:
+    image: ghcr.io/lisovog/mishka-device-status-monitor:${IMAGE_TAG:-stable}
+
+  status-event-sender:
+    image: ghcr.io/lisovog/mishka-status-event-sender:${IMAGE_TAG:-stable}
+
+  health-monitor:
+    image: ghcr.io/lisovog/mishka-health-monitor:${IMAGE_TAG:-stable}
+
+  ota-services:
+    image: ghcr.io/lisovog/mishka-ota-services:${IMAGE_TAG:-stable}
+
+  github-firmware-sync:
+    image: ghcr.io/lisovog/mishka-github-firmware-sync:${IMAGE_TAG:-stable}
+
+  usb-device-monitor:
+    image: ghcr.io/lisovog/mishka-usb-device-monitor:${IMAGE_TAG:-stable}
+
+  wifi-manager:
+    image: ghcr.io/lisovog/mishka-wifi-manager:${IMAGE_TAG:-stable}
+
+  update-coordinator:
+    image: ghcr.io/lisovog/mishka-update-coordinator:${IMAGE_TAG:-stable}
+
+  rpi-system-ota-sync:
+    image: ghcr.io/lisovog/mishka-rpi-system-ota-sync:${IMAGE_TAG:-stable}
+
+  rpi-update-coordinator:
+    image: ghcr.io/lisovog/mishka-rpi-update-coordinator:${IMAGE_TAG:-stable}
+
+  local-ble-scanner:
+    image: ghcr.io/lisovog/mishka-local-ble-scanner:${IMAGE_TAG:-stable}
