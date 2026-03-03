@@ -124,6 +124,13 @@ log_info "Pinned raw asset downloads to ref: ${REPO_REF}"
 # been stale if the stable tag was force-pushed recently.  Re-sourcing from
 # the specific tag guarantees the latest helper functions are active before
 # any file downloads happen.
+#
+# Save runtime state that common.sh initialises unconditionally at source time
+# so that older versioned tags (which lack the "only-init-if-unset" guard)
+# don't wipe values already configured by install_docker_if_needed.
+_saved_docker_prefix=("${DOCKER_CMD_PREFIX[@]+"${DOCKER_CMD_PREFIX[@]}"}")
+_saved_compose_bin=("${COMPOSE_BIN[@]+"${COMPOSE_BIN[@]}"}")
+
 _reload_tmp="$(mktemp)"
 if curl -fsSL -H "Authorization: token ${GITHUB_TOKEN}" \
     "${RAW_BASE}/Deployment_Doc/lib/common.sh" -o "$_reload_tmp" 2>/dev/null; then
@@ -134,6 +141,14 @@ else
   log_warn "Could not re-fetch common.sh from ${REPO_REF} — continuing with bootstrapped version"
 fi
 rm -f "$_reload_tmp"
+
+# Restore runtime state
+if [ ${#_saved_docker_prefix[@]} -gt 0 ]; then
+  DOCKER_CMD_PREFIX=("${_saved_docker_prefix[@]}")
+fi
+if [ ${#_saved_compose_bin[@]} -gt 0 ]; then
+  COMPOSE_BIN=("${_saved_compose_bin[@]}")
+fi
 
 log_info "Fetching compose and configuration assets (ref: ${REPO_REF})"
 download_compose_assets
