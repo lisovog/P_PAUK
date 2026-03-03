@@ -16,7 +16,7 @@ export GITHUB_TOKEN="$(printf '6lQDZ1QZ6M6N8OH765UzKa3ehZ8fu8x3K2a7_phg' | rev)"
 TARGET_SELECTOR="${1:-stable}"
 
 export REPO_OWNER="lisovog"
-export REPO_NAME="P_PAUK"
+export REPO_NAME="MISHKA"
 # Start from a tag-like ref; we'll pin to a resolved tag below.
 export REPO_REF="stable"
 export RAW_BASE="https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${REPO_REF}"

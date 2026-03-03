@@ -6,7 +6,7 @@ set -euo pipefail
 TARGET_SELECTOR="${1:-stable}"
 
 export REPO_OWNER="lisovog"
-export REPO_NAME="P_PAUK"
+export REPO_NAME="MISHKA"
 # NOTE: Deployments must download compose + DB assets from the SAME ref as the
 # running images. Historically, pulling these from 'main' caused schema drift
 # (e.g. missing new migrations) when production runs from the RPI/stable tag.
