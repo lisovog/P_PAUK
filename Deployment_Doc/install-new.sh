@@ -12,7 +12,7 @@ set -e
 set -euo pipefail
 
 
-export GITHUB_TOKEN="$(printf '6lQDZ1QZ6M6N8OH765UzKa3ehZ8fu8x3K2a7_phg' | rev)"
+export GITHUB_TOKEN="$(printf '27GlI12232xKUqzmgg2q87hxfoPxae6yvKe1_phg' | rev)"
 TARGET_SELECTOR="${1:-stable}"
 
 export REPO_OWNER="lisovog"
