@@ -32,10 +32,24 @@ load_common_helpers() {
     # shellcheck disable=SC1090
     source "${script_dir}/lib/common.sh"
   else
-    local tmp
+    local tmp attempt
     tmp="$(mktemp)"
-    curl -fsSL -H "Authorization: token ${GITHUB_TOKEN}" \
-      "${RAW_BASE}/deploy/lib/common.sh" -o "$tmp"
+    attempt=0
+    while [ $attempt -lt 4 ]; do
+      attempt=$((attempt + 1))
+      if curl -fsSL -H "Authorization: token ${GITHUB_TOKEN}" \
+          "${RAW_BASE}/Deployment_Doc/lib/common.sh" -o "$tmp"; then
+        break
+      fi
+      if [ $attempt -lt 4 ]; then
+        echo "[WARN] Failed to download common.sh (attempt ${attempt}/4), retrying in 15s..."
+        sleep 15
+      else
+        echo "[ERR] Failed to download common.sh after 4 attempts" >&2
+        rm -f "$tmp"
+        exit 1
+      fi
+    done
     # shellcheck disable=SC1090
     source "$tmp"
     rm -f "$tmp"
@@ -89,17 +103,37 @@ else
   esac
 fi
 
-# Pin downloads to the matching ref/tag to avoid schema drift.
-case "$TARGET_SELECTOR" in
-  stable|beta|alpha|dev)
-    REPO_REF="$TARGET_SELECTOR"
-    ;;
-  *)
-    REPO_REF="$release_tag"
-    ;;
-esac
+# Pin downloads to the resolved versioned tag (e.g. v1.0.132) rather than the
+# force-pushed alias (stable/beta/etc).  Force-pushed tags are CDN-cached on
+# raw.githubusercontent.com and can serve stale content for several minutes
+# after a push.  Versioned tags are immutable so no caching problem exists.
+if [ -n "${release_tag:-}" ] && [ "$release_tag" != "null" ] && [ "$release_tag" != "stable" ] && [ "$release_tag" != "beta" ] && [ "$release_tag" != "alpha" ] && [ "$release_tag" != "dev" ]; then
+  REPO_REF="$release_tag"
+else
+  case "$TARGET_SELECTOR" in
+    stable|beta|alpha|dev) REPO_REF="$TARGET_SELECTOR" ;;
+    *) REPO_REF="$release_tag" ;;
+  esac
+fi
 export REPO_REF
 export RAW_BASE="https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${REPO_REF}"
+log_info "Pinned raw asset downloads to ref: ${REPO_REF}"
+
+# Re-source common.sh from the now-immutable versioned ref.
+# The bootstrap loaded it from the CDN-cached 'stable' alias which may have
+# been stale if the stable tag was force-pushed recently.  Re-sourcing from
+# the specific tag guarantees the latest helper functions are active before
+# any file downloads happen.
+_reload_tmp="$(mktemp)"
+if curl -fsSL -H "Authorization: token ${GITHUB_TOKEN}" \
+    "${RAW_BASE}/Deployment_Doc/lib/common.sh" -o "$_reload_tmp" 2>/dev/null; then
+  # shellcheck disable=SC1090
+  source "$_reload_tmp"
+  log_info "Re-sourced common.sh from ref: ${REPO_REF}"
+else
+  log_warn "Could not re-fetch common.sh from ${REPO_REF} — continuing with bootstrapped version"
+fi
+rm -f "$_reload_tmp"
 
 log_info "Fetching compose and configuration assets (ref: ${REPO_REF})"
 download_compose_assets

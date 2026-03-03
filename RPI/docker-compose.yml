@@ -36,7 +36,7 @@ services:
       - build-only
 
   timescale-database:
-    image: timescale/timescaledb:2.17.2-pg17
+    image: timescale/timescaledb:2.25.1-pg17
     container_name: Database-Timescale
     restart: unless-stopped
     environment:
@@ -73,7 +73,7 @@ services:
       args:
         SERVICE_BASE_IMAGE: mishka-service-base:latest
         VITE_API_BASE_URL: ${WEB_UI_VITE_API_BASE_URL:-http://localhost:8000}
-        VITE_MQTT_URL: ${WEB_UI_VITE_MQTT_URL:-ws://localhost:9001/mqtt}
+        VITE_MQTT_URL: ${WEB_UI_VITE_MQTT_URL:-ws://localhost:9001}
         VITE_MQTT_USERNAME: ${WEB_UI_VITE_MQTT_USERNAME:-}
         VITE_MQTT_PASSWORD: ${WEB_UI_VITE_MQTT_PASSWORD:-}
         VITE_APP_BASE_PATH: ${WEB_UI_VITE_APP_BASE_PATH:-/}
@@ -141,7 +141,7 @@ services:
     restart: always
 
   database-setup:
-    image: timescale/timescaledb:2.17.2-pg17
+    image: timescale/timescaledb:2.25.1-pg17
     container_name: Database-Setup
     depends_on:
       - timescale-database
@@ -157,6 +157,11 @@ services:
         done
         echo "[database-setup] Database is ready."
         export PGPASSWORD="${DATABASE_PASSWORD}"
+        
+        # Step 0: Update TimescaleDB extension if a newer version is available
+        # Must run in its own session before initial_schema.sql loads the extension
+        echo "[database-setup] Checking TimescaleDB extension version..."
+        psql -X -h "${DATABASE_HOST}" -U "${DATABASE_USER}" -d "${DATABASE_NAME}" -c "ALTER EXTENSION timescaledb UPDATE;" 2>/dev/null || true
         
         # Step 1: Apply initial schema (creates all tables for fresh databases)
         if [ -f /database-assets/initial_schema.sql ]; then
@@ -206,8 +211,6 @@ services:
     image: sosedoff/pgweb:latest
     container_name: PostgreSQL-Browser
     restart: unless-stopped
-    profiles:
-      - data-analysis
     ports:
       - "8081:8081"
     networks:
@@ -222,9 +225,29 @@ services:
     command:
       - -c
       - |
-        # Volume is mounted but may have permission issues, pgweb auto-creates if needed
         pgweb --bind=0.0.0.0 --listen=8081 \
           --readonly \
+          --url=postgres://${DATABASE_USER}:${DATABASE_PASSWORD}@timescale-database:5432/${DATABASE_NAME}?sslmode=disable
+
+  pgweb-write:
+    image: sosedoff/pgweb:latest
+    container_name: PostgreSQL-Browser-Write
+    restart: unless-stopped
+    ports:
+      - "8082:8082"
+    networks:
+      - default
+    volumes:
+      - pgweb_bookmarks:/home/pgweb/.pgweb
+    environment:
+      PGWEB_DATABASE_URL: postgres://${DATABASE_USER}:${DATABASE_PASSWORD}@timescale-database:5432/${DATABASE_NAME}?sslmode=disable
+    depends_on:
+      - timescale-database
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - |
+        pgweb --bind=0.0.0.0 --listen=8082 \
           --url=postgres://${DATABASE_USER}:${DATABASE_PASSWORD}@timescale-database:5432/${DATABASE_NAME}?sslmode=disable
 
   mqtt-data-processor:
@@ -235,6 +258,11 @@ services:
         SERVICE_BASE_IMAGE: mishka-service-base:latest
     image: mqtt-data-processor
     container_name: MQTT-Data-Processor
+    stop_grace_period: 15s
+    deploy:
+      resources:
+        limits:
+          memory: 1G
     environment:
       - DATABASE_URL=${DATABASE_URL}
       - MQTT_HOST=${MQTT_HOST}

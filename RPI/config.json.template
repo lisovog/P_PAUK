@@ -23,6 +23,10 @@
     "host": "mqtt-broker",
     "port": 1883
   },
+  "sql_browser": {
+    "auth_user": "CHANGE_ME",
+    "auth_pass": "CHANGE_ME"
+  },
   "server_endpoint": "https://proxy.timeline.events/api/v1/mishka/tagevent",
   "endpoint_company_name": "1a7b3f9e2d8c1a7b3f9e2d8c1a7b3f9",
   "endpoint_batch_size": 500,
@@ -31,6 +35,50 @@
   "status_event_endpoint": "https://proxy.timeline.events/api/v1/mishka/statusevent",
   "status_event_frequency": 300,
   "status_event_enabled": false,
+  "tag_upload": {
+    "method": "event_hub",
+    "batch_size": 500,
+    "store_sent_records": false,
+    "proxy": {
+      "base_url": "https://proxy.timeline.events",
+      "company_name": "1a7b3f9e2d8c1a7b3f9e2d8c1a7b3f9",
+      "enabled": false,
+      "standard": {
+        "endpoint": "/api/v1/mishka/tagevent",
+        "batch_timer": 60
+      },
+      "priority": {
+        "endpoint": "/api/v1/mishka/tageventlive",
+        "batch_timer": 1
+      }
+    },
+    "event_hub": {
+      "connection_string": "Endpoint=sb://timelineeventhubprod.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=",
+      "enabled": true,
+      "standard": {
+        "hub_name": "tag_event_raw",
+        "batch_timer": 60
+      },
+      "priority": {
+        "hub_name": "tag_event_live",
+        "batch_timer": 1
+      }
+    }
+  },
+  "status_upload": {
+    "method": "event_hub",
+    "proxy": {
+      "endpoint": "https://proxy.timeline.events/api/v1/mishka/statusevent",
+      "frequency": 300,
+      "enabled": false
+    },
+    "event_hub": {
+      "connection_string": "Endpoint=sb://timelineeventhubprod.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=",
+      "hub_name": "device_status_raw",
+      "frequency": 300,
+      "enabled": true
+    }
+  },
   "service_intervals": {
     "config_check_interval": 30,
     "device_monitor_sync_interval": 5

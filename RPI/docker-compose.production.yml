@@ -68,7 +68,7 @@ services:
 
   # Infrastructure services - these don't have GHCR images, use base definitions
   timescale-database:
-        image: timescale/timescaledb:2.17.2-pg17
+        image: timescale/timescaledb:2.25.1-pg17
   mqtt-broker:
     image: eclipse-mosquitto:latest
 
@@ -76,7 +76,7 @@ services:
     image: sosedoff/pgweb:latest
 
   database-setup:
-        image: timescale/timescaledb:2.17.2-pg17
+        image: timescale/timescaledb:2.25.1-pg17
   local-ble-scanner:
     image: ghcr.io/lisovog/mishka-local-ble-scanner:${VERSION:-stable}
     build: null

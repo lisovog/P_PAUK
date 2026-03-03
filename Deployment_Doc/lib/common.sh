@@ -263,8 +263,22 @@ pull_service_images() {
 download_raw_file() {
   local dest="$1"
   local repo_path="$2"
-  curl -fsSL "${AUTH_HEADER[@]}" -H "Accept: application/vnd.github.v3.raw" \
-    "${RAW_BASE}/${repo_path}" -o "$dest"
+  local attempt=0
+  local max_attempts=3
+  local delay=5
+  while [ $attempt -lt $max_attempts ]; do
+    attempt=$((attempt + 1))
+    if curl -fsSL "${AUTH_HEADER[@]}" -H "Accept: application/vnd.github.v3.raw" \
+        "${RAW_BASE}/${repo_path}" -o "$dest"; then
+      return 0
+    fi
+    if [ $attempt -lt $max_attempts ]; then
+      log_warn "Download failed for ${repo_path} (attempt ${attempt}/${max_attempts}), retrying in ${delay}s..."
+      sleep $delay
+      delay=$((delay * 2))
+    fi
+  done
+  return 1
 }
 
 api_get() {
@@ -334,17 +348,21 @@ download_service_assets() {
   fi
   
   if ! download_raw_file "$database_dir/postgresql.conf" "RPI/services/shared/database/postgresql.conf"; then
-    log_error "Failed to download postgresql.conf"
-    exit 1
+    log_warn "Failed to download postgresql.conf after retries - creating empty fallback (PostgreSQL will use container defaults)"
+    touch "$database_dir/postgresql.conf"
   fi
-  
-  # Verify it's a regular file
+
+  # Verify it's a regular file (not a directory)
   if [ ! -f "$database_dir/postgresql.conf" ]; then
-    log_error "postgresql.conf is not a regular file!"
-    exit 1
+    log_warn "postgresql.conf is not a regular file - creating empty fallback"
+    touch "$database_dir/postgresql.conf"
   fi
-  
-  log_success "Downloaded postgresql.conf ($(wc -l < "$database_dir/postgresql.conf") lines)"
+
+  if [ -s "$database_dir/postgresql.conf" ]; then
+    log_success "Downloaded postgresql.conf ($(wc -l < "$database_dir/postgresql.conf") lines)"
+  else
+    log_warn "postgresql.conf is empty - PostgreSQL will use container defaults (SD-card optimizations may be missing)"
+  fi
 
   # Download additional config files to config/ subdirectory (not used by default)
   mkdir -p "$database_dir/config"
@@ -373,16 +391,16 @@ download_service_assets() {
   fi
 
   # Download systemd service files for OTA watcher
-  local systemd_dir="$WORK_DIR/deploy/systemd"
+  local systemd_dir="$WORK_DIR/Deployment_Doc/systemd"
   sudo mkdir -p "$systemd_dir"
   sudo chown -R "$CURRENT_USER":"$CURRENT_USER" "$systemd_dir"
-  if ! download_raw_file "$systemd_dir/ota-update-watcher.sh" "deploy/systemd/ota-update-watcher.sh"; then
+  if ! download_raw_file "$systemd_dir/ota-update-watcher.sh" "Deployment_Doc/systemd/ota-update-watcher.sh"; then
     log_warn "Failed to download ota-update-watcher.sh"
   else
     chmod +x "$systemd_dir/ota-update-watcher.sh"
   fi
   
-  if ! download_raw_file "$systemd_dir/mishka-ota-updater.service" "deploy/systemd/mishka-ota-updater.service"; then
+  if ! download_raw_file "$systemd_dir/mishka-ota-updater.service" "Deployment_Doc/systemd/mishka-ota-updater.service"; then
     log_warn "Failed to download mishka-ota-updater.service"
   fi
 
@@ -466,12 +484,12 @@ generate_env_file() {
 }
 
 fetch_systemd_assets() {
-  download_raw_file "$WORK_DIR/systemd/mishka-hostname-detect.sh" "deploy/systemd/mishka-hostname-detect.sh"
-  download_raw_file "$WORK_DIR/systemd/mishka-hostname.service" "deploy/systemd/mishka-hostname.service"
-  download_raw_file "$WORK_DIR/systemd/mqtt-timeline-alias.sh" "deploy/systemd/mqtt-timeline-alias.sh"
-  download_raw_file "$WORK_DIR/systemd/mqtt-timeline-alias.service" "deploy/systemd/mqtt-timeline-alias.service"
-  download_raw_file "$WORK_DIR/systemd/ota-update-watcher.sh" "deploy/systemd/ota-update-watcher.sh"
-  download_raw_file "$WORK_DIR/systemd/mishka-ota-updater.service" "deploy/systemd/mishka-ota-updater.service"
+  download_raw_file "$WORK_DIR/systemd/mishka-hostname-detect.sh" "Deployment_Doc/systemd/mishka-hostname-detect.sh"
+  download_raw_file "$WORK_DIR/systemd/mishka-hostname.service" "Deployment_Doc/systemd/mishka-hostname.service"
+  download_raw_file "$WORK_DIR/systemd/mqtt-timeline-alias.sh" "Deployment_Doc/systemd/mqtt-timeline-alias.sh"
+  download_raw_file "$WORK_DIR/systemd/mqtt-timeline-alias.service" "Deployment_Doc/systemd/mqtt-timeline-alias.service"
+  download_raw_file "$WORK_DIR/systemd/ota-update-watcher.sh" "Deployment_Doc/systemd/ota-update-watcher.sh"
+  download_raw_file "$WORK_DIR/systemd/mishka-ota-updater.service" "Deployment_Doc/systemd/mishka-ota-updater.service"
 }
 
 install_systemd_units() {
@@ -742,13 +760,13 @@ install_system_services() {
   # Install OTA update watcher service
   log_info "Installing OTA update watcher service..."
   sudo mkdir -p /opt/mishka/bin
-  if [ -f "$WORK_DIR/deploy/systemd/ota-update-watcher.sh" ]; then
-      sudo cp "$WORK_DIR/deploy/systemd/ota-update-watcher.sh" /opt/mishka/bin/
+  if [ -f "$WORK_DIR/Deployment_Doc/systemd/ota-update-watcher.sh" ]; then
+      sudo cp "$WORK_DIR/Deployment_Doc/systemd/ota-update-watcher.sh" /opt/mishka/bin/
       sudo chmod +x /opt/mishka/bin/ota-update-watcher.sh
       log_success "OTA watcher script installed"
   fi
-  if [ -f "$WORK_DIR/deploy/systemd/mishka-ota-updater.service" ]; then
-      sudo cp "$WORK_DIR/deploy/systemd/mishka-ota-updater.service" /etc/systemd/system/
+  if [ -f "$WORK_DIR/Deployment_Doc/systemd/mishka-ota-updater.service" ]; then
+      sudo cp "$WORK_DIR/Deployment_Doc/systemd/mishka-ota-updater.service" /etc/systemd/system/
       sudo systemctl daemon-reload
       sudo systemctl enable mishka-ota-updater.service
       sudo systemctl start mishka-ota-updater.service

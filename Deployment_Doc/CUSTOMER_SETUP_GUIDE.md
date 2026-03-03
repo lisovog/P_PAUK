@@ -170,7 +170,7 @@ ssh timeline@IP_ADDRESS
 Run the following command to install MISHKA:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/lisovog/P_PAUK/stable/deploy/install-new.sh | bash -s -- stable
+curl -fsSL https://raw.githubusercontent.com/lisovog/P_PAUK/stable/Deployment_Doc/install-new.sh | bash -s -- stable
 ```
 
 This process will take several minutes. Wait for the installation to complete.

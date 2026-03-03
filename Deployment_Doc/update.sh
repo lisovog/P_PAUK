@@ -66,7 +66,7 @@ load_common_helpers() {
     local tmp
     tmp="$(mktemp)"
     curl -fsSL -H "Authorization: token ${GITHUB_TOKEN}" \
-      "${RAW_BASE}/deploy/lib/common.sh" -o "$tmp"
+      "${RAW_BASE}/Deployment_Doc/lib/common.sh" -o "$tmp"
     # shellcheck disable=SC1090
     source "$tmp"
     rm -f "$tmp"

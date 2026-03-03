@@ -42,6 +42,12 @@ def config_to_env_vars(config: dict):
         env_vars['MQTT_BROKER'] = mqtt.get('broker') or mqtt['host']
         env_vars['MQTT_USERNAME'] = mqtt.get('username', '')
         env_vars['MQTT_PASSWORD'] = mqtt.get('password', '')
+
+    # SQL browser (pgweb) configuration
+    if 'sql_browser' in config:
+        sql_browser = config['sql_browser']
+        env_vars['PGWEB_AUTH_USER'] = sql_browser.get('auth_user', '')
+        env_vars['PGWEB_AUTH_PASS'] = sql_browser.get('auth_pass', '')
     
     # OTA configuration
     if 'ota' in config:
