@@ -209,9 +209,19 @@ Password: `1245`
 
 ### Step 2: Run the Update
 
+**Option A — Local update script (recommended):**
+
 ```bash
 cd ~/mishka
 bash Deployment_Doc/update.sh
+```
+
+**Option B — Download latest update script from the internet:**
+
+Use this if Option A fails or if your device was installed before the local update script was bundled.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/lisovog/P_PAUK/stable/Deployment_Doc/update.sh | bash -s -- stable
 ```
 
 This will:
