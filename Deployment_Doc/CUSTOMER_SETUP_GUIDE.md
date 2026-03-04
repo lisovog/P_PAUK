@@ -194,3 +194,44 @@ http://PAUK-08B1CA.local:8000 (you will have a different device name based on th
 
 
 ---
+
+## Updating to a New Version
+
+When a new MISHKA release is available, update your device by following these steps:
+
+### Step 1: Connect to the Device via SSH
+
+```
+ssh timeline@IP_ADDRESS
+```
+
+Password: `1245`
+
+### Step 2: Run the Update
+
+```bash
+cd ~/mishka
+bash Deployment_Doc/update.sh
+```
+
+This will:
+- Stop all running services
+- Download the latest configuration and database migrations
+- Pull the latest Docker images
+- Restart all services
+
+The update takes approximately **5-10 minutes**. Wait for it to complete.
+
+### Step 3: Verify the Update
+
+After the update finishes, confirm everything is running:
+
+```bash
+cd ~/mishka && docker compose ps
+```
+
+All services should show **"Up"** status. Open the Web UI to verify:
+
+http://YOUR_DEVICE_NAME.local:8000
+
+---

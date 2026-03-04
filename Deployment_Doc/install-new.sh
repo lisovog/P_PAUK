@@ -62,6 +62,7 @@ refresh_auth_header
 log_info "Starting new device provisioning"
 
 ensure_packages curl jq python3 python3-pip avahi-daemon avahi-utils libnss-mdns ca-certificates
+disable_ipv6
 install_docker_if_needed
 prepare_directories
 
@@ -214,7 +215,14 @@ while [ $attempt -lt $max_attempts ]; do
   fi
   
   log_info "Starting database service (attempt ${attempt}/${max_attempts})..."
-  if cd "$WORK_DIR" && "${COMPOSE_BIN[@]}" "${compose_args[@]}" up -d timescale-database --no-build --remove-orphans 2>&1 | tee /tmp/db_start.log; then
+  # Verify schema files exist on host before starting container
+  if [ ! -f "$WORK_DIR/services/shared/database/initial_schema.sql" ]; then
+    log_error "initial_schema.sql missing from host at $WORK_DIR/services/shared/database/"
+    ls -la "$WORK_DIR/services/shared/database/" 2>&1 || true
+    exit 1
+  fi
+  log_info "Schema files verified on host ($(ls $WORK_DIR/services/shared/database/*.sql 2>/dev/null | wc -l) SQL files)"
+  if cd "$WORK_DIR" && "${COMPOSE_BIN[@]}" "${compose_args[@]}" up -d timescale-database --no-build --force-recreate --remove-orphans 2>&1 | tee /tmp/db_start.log; then
     db_started=true
     break
   fi
@@ -279,6 +287,12 @@ log_success "Database network configuration verified"
 # Run initial schema
 if ! "${docker_cli[@]}" exec Database-Timescale test -f /docker-entrypoint-initdb.d/initial_schema.sql; then
   log_error "initial_schema.sql not found in Database-Timescale container"
+  log_error "--- Diagnostic info ---"
+  log_error "Host files: $(ls -la "$WORK_DIR/services/shared/database/" 2>&1)"
+  log_error "Container mounts:"
+  "${docker_cli[@]}" inspect Database-Timescale --format '{{range .Mounts}}  {{.Source}} -> {{.Destination}} ({{.Type}}){{println}}{{end}}' 2>&1 | while read -r line; do log_error "$line"; done
+  log_error "Container /docker-entrypoint-initdb.d/:"
+  "${docker_cli[@]}" exec Database-Timescale ls -la /docker-entrypoint-initdb.d/ 2>&1 | while read -r line; do log_error "  $line"; done
   exit 1
 fi
 log_info "Running initial schema..."
@@ -312,9 +326,9 @@ log_success "Database schema validated"
 
 # Now start all application services (database already running, migrations complete)
 log_info "Starting all services..."
-cd "$WORK_DIR" && "${COMPOSE_BIN[@]}" "${compose_args[@]}" up -d --no-build --remove-orphans
+cd "$WORK_DIR" && "${COMPOSE_BIN[@]}" "${compose_args[@]}" up -d --no-build --force-recreate --remove-orphans
 if [ "$(uname -s)" = "Linux" ]; then
-  cd "$WORK_DIR" && "${COMPOSE_BIN[@]}" "${compose_args[@]}" --profile linux-hw up -d --no-build --remove-orphans
+  cd "$WORK_DIR" && "${COMPOSE_BIN[@]}" "${compose_args[@]}" --profile linux-hw up -d --no-build --force-recreate --remove-orphans
 fi
 log_success "All services started successfully"
 

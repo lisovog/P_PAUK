@@ -63,10 +63,24 @@ load_common_helpers() {
     # shellcheck disable=SC1090
     source "${script_dir}/lib/common.sh"
   else
-    local tmp
+    local tmp attempt
     tmp="$(mktemp)"
-    curl -fsSL -H "Authorization: token ${GITHUB_TOKEN}" \
-      "${RAW_BASE}/Deployment_Doc/lib/common.sh" -o "$tmp"
+    attempt=0
+    while [ $attempt -lt 4 ]; do
+      attempt=$((attempt + 1))
+      if curl -fsSL -H "Authorization: token ${GITHUB_TOKEN}" \
+          "${RAW_BASE}/Deployment_Doc/lib/common.sh" -o "$tmp"; then
+        break
+      fi
+      if [ $attempt -lt 4 ]; then
+        echo "[WARN] Failed to download common.sh (attempt ${attempt}/4), retrying in 15s..."
+        sleep 15
+      else
+        echo "[ERR] Failed to download common.sh after 4 attempts" >&2
+        rm -f "$tmp"
+        exit 1
+      fi
+    done
     # shellcheck disable=SC1090
     source "$tmp"
     rm -f "$tmp"
@@ -79,6 +93,7 @@ refresh_auth_header
 log_info "Starting update (selector='${TARGET_SELECTOR}')"
 
 ensure_packages curl jq python3 python3-pip avahi-daemon avahi-utils libnss-mdns ca-certificates
+disable_ipv6
 install_docker_if_needed
 prepare_directories
 
@@ -101,17 +116,34 @@ else
   fi
 fi
 
-# Pin raw downloads to the resolved tag (or channel tag when explicitly requested).
-case "$TARGET_SELECTOR" in
-  stable|beta|alpha|dev)
-    REPO_REF="$TARGET_SELECTOR"
-    ;;
-  *)
-    REPO_REF="$release_tag"
-    ;;
-esac
+# Pin raw downloads to the resolved versioned tag (e.g. v1.0.140) rather than the
+# force-pushed alias (stable/beta/etc).  Force-pushed tags are CDN-cached on
+# raw.githubusercontent.com and can serve stale content for several minutes.
+# Versioned tags are immutable so no caching problem exists.
+if [ -n "${release_tag:-}" ] && [ "$release_tag" != "null" ] && [ "$release_tag" != "stable" ] && [ "$release_tag" != "beta" ] && [ "$release_tag" != "alpha" ] && [ "$release_tag" != "dev" ]; then
+  REPO_REF="$release_tag"
+else
+  case "$TARGET_SELECTOR" in
+    stable|beta|alpha|dev) REPO_REF="$TARGET_SELECTOR" ;;
+    *) REPO_REF="$release_tag" ;;
+  esac
+fi
 export REPO_REF
 export RAW_BASE="https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${REPO_REF}"
+log_info "Pinned raw asset downloads to ref: ${REPO_REF}"
+
+# --- Stop all running containers BEFORE downloading new assets ---
+# Docker bind mounts point to the original inode; download_service_assets() does
+# rm -rf + mkdir which creates a *new* directory.  If the container keeps running
+# it still sees the old (now-deleted) directory and new files are invisible.
+log_info "Stopping running containers before asset update..."
+select_compose_bin
+_pre_compose_args=(-f "$WORK_DIR/docker-compose.yml")
+[ -f "$WORK_DIR/docker-compose.ghcr.yml" ]       && _pre_compose_args+=(-f "$WORK_DIR/docker-compose.ghcr.yml")
+[ -f "$WORK_DIR/docker-compose.production.yml" ]  && _pre_compose_args+=(-f "$WORK_DIR/docker-compose.production.yml")
+[ -f "$WORK_DIR/docker-compose.linux-hw.yml" ]    && _pre_compose_args+=(-f "$WORK_DIR/docker-compose.linux-hw.yml")
+cd "$WORK_DIR" && "${COMPOSE_BIN[@]}" "${_pre_compose_args[@]}" --profile linux-hw down --remove-orphans 2>/dev/null || true
+log_success "Containers stopped"
 
 download_compose_assets
 download_service_assets
@@ -186,7 +218,13 @@ while [ $attempt -lt $max_attempts ]; do
   fi
   
   log_info "Starting database service (attempt ${attempt}/${max_attempts})..."
-  if cd "$WORK_DIR" && "${COMPOSE_BIN[@]}" "${compose_args[@]}" up -d timescale-database --no-build --remove-orphans 2>&1 | tee /tmp/db_start.log; then
+  # Verify schema files exist on host before starting container
+  if [ ! -f "$WORK_DIR/services/shared/database/initial_schema.sql" ]; then
+    log_error "initial_schema.sql missing from host at $WORK_DIR/services/shared/database/"
+    ls -la "$WORK_DIR/services/shared/database/" 2>&1 || true
+    exit 1
+  fi
+  if cd "$WORK_DIR" && "${COMPOSE_BIN[@]}" "${compose_args[@]}" up -d timescale-database --no-build --force-recreate --remove-orphans 2>&1 | tee /tmp/db_start.log; then
     db_started=true
     break
   fi
@@ -259,6 +297,12 @@ fi
 # Run migrations
 if ! "${docker_cli[@]}" exec Database-Timescale test -f /docker-entrypoint-initdb.d/schema_migrations.sql; then
   log_error "schema_migrations.sql not found in Database-Timescale container"
+  log_error "--- Diagnostic info ---"
+  log_error "Host files: $(ls -la "$WORK_DIR/services/shared/database/" 2>&1)"
+  log_error "Container mounts:"
+  "${docker_cli[@]}" inspect Database-Timescale --format '{{range .Mounts}}  {{.Source}} -> {{.Destination}} ({{.Type}}){{println}}{{end}}' 2>&1 | while read -r line; do log_error "$line"; done
+  log_error "Container /docker-entrypoint-initdb.d/:"
+  "${docker_cli[@]}" exec Database-Timescale ls -la /docker-entrypoint-initdb.d/ 2>&1 | while read -r line; do log_error "  $line"; done
   exit 1
 fi
 log_info "Running schema migrations..."
@@ -282,9 +326,9 @@ log_success "Database schema validated"
 
 # Now start all application services (database already running, migrations complete)
 log_info "Starting all services..."
-cd "$WORK_DIR" && "${COMPOSE_BIN[@]}" "${compose_args[@]}" up -d --no-build --remove-orphans
+cd "$WORK_DIR" && "${COMPOSE_BIN[@]}" "${compose_args[@]}" up -d --no-build --force-recreate --remove-orphans
 if [ "$(uname -s)" = "Linux" ]; then
-  cd "$WORK_DIR" && "${COMPOSE_BIN[@]}" "${compose_args[@]}" --profile linux-hw up -d --no-build --remove-orphans
+  cd "$WORK_DIR" && "${COMPOSE_BIN[@]}" "${compose_args[@]}" --profile linux-hw up -d --no-build --force-recreate --remove-orphans
 fi
 log_success "All services started successfully"
 
