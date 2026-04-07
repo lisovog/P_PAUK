@@ -169,6 +169,23 @@ generate_env_file
 fetch_systemd_assets
 install_systemd_units
 
+# Install Tailscale on host if not already present (for devices updating from
+# pre-Tailscale versions). Existing installs are left untouched.
+if ! command -v tailscale >/dev/null 2>&1; then
+  log_info "Installing Tailscale VPN client (first-time)..."
+  if curl -fsSL https://tailscale.com/install.sh | sh; then
+    log_success "Tailscale installed"
+    # First-time setup: enable daemon + auto-updates
+    systemctl enable --now tailscaled 2>/dev/null || true
+    tailscale set --auto-update 2>/dev/null || true
+  else
+    log_warn "Tailscale installation failed — can be installed manually later"
+  fi
+fi
+# Ensure the Tailscale socket directory exists (docker-compose bind mount
+# will fail if the host path is missing, even when Tailscale isn't set up yet)
+mkdir -p /var/run/tailscale
+
 # --- Ensure runtime compose contains DB migrations and host reboot permissions ---
 if [ -f "${WORK_DIR}/docker-compose.yml" ]; then
   # Add schema directory mount to the TimescaleDB service (idempotent)

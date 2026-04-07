@@ -163,6 +163,27 @@ log_info "Installing hostname and mDNS systemd units"
 fetch_systemd_assets
 install_systemd_units
 
+# Install Tailscale VPN (host-level, not containerised)
+log_info "Installing Tailscale VPN client..."
+if command -v tailscale >/dev/null 2>&1; then
+  log_info "Tailscale already installed ($(tailscale version | head -1))"
+else
+  if curl -fsSL https://tailscale.com/install.sh | sh; then
+    log_success "Tailscale installed"
+  else
+    log_warn "Tailscale installation failed — you can install it later via: curl -fsSL https://tailscale.com/install.sh | sh"
+  fi
+fi
+# Ensure tailscaled is running so the web UI can communicate via socket
+if command -v tailscaled >/dev/null 2>&1; then
+  systemctl enable --now tailscaled 2>/dev/null || true
+  # Enable Tailscale auto-updates
+  tailscale set --auto-update 2>/dev/null || true
+fi
+# Ensure the Tailscale socket directory exists (docker-compose bind mount
+# will fail if the host path is missing, even when Tailscale isn't set up yet)
+mkdir -p /var/run/tailscale
+
 log_info "Generating environment file from updated config"
 generate_env_file
 
