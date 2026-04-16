@@ -20,8 +20,8 @@ export CONFIG_DIR="/opt/mishka"
 export WORK_DIR="${HOME}/mishka"
 export FIRMWARE_ROOT="${CONFIG_DIR}/firmware/esp32"
 
-if [ ! -f "${CONFIG_DIR}/config.json" ]; then
-  echo "Config not found at ${CONFIG_DIR}/config.json. Run install-new.sh first." >&2
+if [ ! -f "${CONFIG_DIR}/bootstrap.json" ]; then
+  echo "Bootstrap not found at ${CONFIG_DIR}/bootstrap.json. Run install-new.sh first." >&2
   exit 1
 fi
 
@@ -29,20 +29,22 @@ export GITHUB_TOKEN="$(python3 <<'PY'
 import json
 from pathlib import Path
 
-cfg_path = Path('/opt/mishka/config.json')
+cfg_path = Path('/opt/mishka/bootstrap.json')
 try:
   config = json.loads(cfg_path.read_text())
 except Exception:
   config = {}
 
-token = ''
-stack = [config]
-while stack:
-  item = stack.pop()
-  if isinstance(item, dict):
-    if 'token' in item and isinstance(item['token'], str) and item['token'].strip():
-      token = item['token'].strip()
-      break
+token = config.get('github_token', '')
+if not token:
+  # Walk entire dict as fallback
+  stack = [config]
+  while stack:
+    item = stack.pop()
+    if isinstance(item, dict):
+      if 'token' in item and isinstance(item['token'], str) and item['token'].strip():
+        token = item['token'].strip()
+        break
     stack.extend(item.values())
   elif isinstance(item, list):
     stack.extend(item)

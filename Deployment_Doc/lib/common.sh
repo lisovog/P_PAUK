@@ -346,7 +346,7 @@ download_compose_assets() {
   download_raw_file "$WORK_DIR/docker-compose.production.yml" "RPI/docker-compose.production.yml"
   download_raw_file "$WORK_DIR/docker-compose.linux-hw.yml" "RPI/docker-compose.linux-hw.yml"
   download_raw_file "$WORK_DIR/config_to_env.py" "RPI/config_to_env.py"
-  download_raw_file "$WORK_DIR/config.json.template" "RPI/config.json.template"
+  download_raw_file "$WORK_DIR/bootstrap.json.template" "RPI/bootstrap.json.template"
 }
 
 download_service_assets() {
@@ -413,7 +413,7 @@ download_service_assets() {
   fi
 
   # Download update script so customers can run updates locally without
-  # needing to curl from the private repo (token is read from config.json).
+  # needing to curl from the private repo (token is read from bootstrap.json).
   local deploy_dir="$WORK_DIR/Deployment_Doc"
   sudo mkdir -p "$deploy_dir/lib"
   sudo chown -R "$CURRENT_USER":"$CURRENT_USER" "$deploy_dir"
@@ -466,13 +466,13 @@ CONFEOF
 }
 
 ensure_config_file() {
-  if [ ! -f "$CONFIG_DIR/config.json" ]; then
-    log_info "Initializing config.json from template"
-    sudo cp "$WORK_DIR/config.json.template" "$CONFIG_DIR/config.json"
-    sudo chown root:"$USER" "$CONFIG_DIR/config.json"
-    sudo chmod 660 "$CONFIG_DIR/config.json"
+  if [ ! -f "$CONFIG_DIR/bootstrap.json" ]; then
+    log_info "Initializing bootstrap.json from template"
+    sudo cp "$WORK_DIR/bootstrap.json.template" "$CONFIG_DIR/bootstrap.json"
+    sudo chown root:"$USER" "$CONFIG_DIR/bootstrap.json"
+    sudo chmod 660 "$CONFIG_DIR/bootstrap.json"
   fi
-  ln -sf "$CONFIG_DIR/config.json" "$WORK_DIR/config.json"
+  ln -sf "$CONFIG_DIR/bootstrap.json" "$WORK_DIR/bootstrap.json"
 }
 
 update_config_metadata() {
@@ -490,14 +490,13 @@ token = sys.argv[2].strip() if len(sys.argv) > 2 else ''
 release_tag = sys.argv[3].strip() if len(sys.argv) > 3 else ''
 channel = sys.argv[4].strip() if len(sys.argv) > 4 else ''
 
-config_path = os.path.join(config_dir, 'config.json')
+bs_path = os.path.join(config_dir, 'bootstrap.json')
 
-with open(config_path, 'r', encoding='utf-8') as fh:
+with open(bs_path, 'r', encoding='utf-8') as fh:
   config = json.load(fh)
 
-github = config.setdefault('github', {})
 if token:
-  github['token'] = token
+  config['github_token'] = token
 
 ota = config.setdefault('system_ota', {})
 if release_tag:
@@ -509,14 +508,14 @@ if release_tag:
 if channel:
   ota['channel'] = channel
 
-with open(config_path, 'w', encoding='utf-8') as fh:
+with open(bs_path, 'w', encoding='utf-8') as fh:
   json.dump(config, fh, indent=2)
   fh.write('\n')
 PY
 }
 
 generate_env_file() {
-  python3 "$WORK_DIR/config_to_env.py" "$CONFIG_DIR/config.json" --output "$WORK_DIR/.env"
+  python3 "$WORK_DIR/config_to_env.py" "$CONFIG_DIR/bootstrap.json" --output "$WORK_DIR/.env"
 }
 
 fetch_systemd_assets() {
@@ -766,9 +765,9 @@ release_tag = sys.argv[2].strip() if len(sys.argv) > 2 else ''
 if not release_tag:
   raise SystemExit(0)
 
-config_path = os.path.join(config_dir, 'config.json')
+bs_path = os.path.join(config_dir, 'bootstrap.json')
 
-with open(config_path, 'r', encoding='utf-8') as fh:
+with open(bs_path, 'r', encoding='utf-8') as fh:
   config = json.load(fh)
 
 ota = config.setdefault('system_ota', {})
@@ -778,7 +777,7 @@ if previous and previous != release_tag:
 ota['current_version'] = release_tag
 ota['last_update'] = datetime.utcnow().isoformat() + 'Z'
 
-with open(config_path, 'w', encoding='utf-8') as fh:
+with open(bs_path, 'w', encoding='utf-8') as fh:
   json.dump(config, fh, indent=2)
   fh.write('\n')
 PY
