@@ -306,15 +306,29 @@ fi
 log_success "Database network configuration verified"
 
 # Run initial schema (for new tables added in updates)
-if "${docker_cli[@]}" exec Database-Timescale test -f /docker-entrypoint-initdb.d/initial_schema.sql; then
-  log_info "Running initial schema (for any new tables)..."
-  if ! "${docker_cli[@]}" exec Database-Timescale psql -v ON_ERROR_STOP=1 -U bleuser -d bledb -f /docker-entrypoint-initdb.d/initial_schema.sql 2>&1 | grep -v "already exists" | grep -v "ERROR.*relation.*already exists"; then
-    log_info "Initial schema already applied (this is normal on updates)"
+# File is mounted as 01_initial_schema.sql in the container
+_schema_file=""
+for _candidate in /docker-entrypoint-initdb.d/01_initial_schema.sql /docker-entrypoint-initdb.d/initial_schema.sql; do
+  if "${docker_cli[@]}" exec Database-Timescale test -f "$_candidate" 2>/dev/null; then
+    _schema_file="$_candidate"
+    break
   fi
+done
+if [ -n "$_schema_file" ]; then
+  log_info "Running initial schema (for any new tables)..."
+  "${docker_cli[@]}" exec Database-Timescale psql -v ON_ERROR_STOP=1 -U bleuser -d bledb -f "$_schema_file" 2>&1 | grep -v "already exists" | grep -v "ERROR.*relation.*already exists" || true
 fi
 
-# Run migrations
-if ! "${docker_cli[@]}" exec Database-Timescale test -f /docker-entrypoint-initdb.d/schema_migrations.sql; then
+# Run schema migrations
+# File is mounted as 02_schema_migrations.sql in the container
+_migrations_file=""
+for _candidate in /docker-entrypoint-initdb.d/02_schema_migrations.sql /docker-entrypoint-initdb.d/schema_migrations.sql; do
+  if "${docker_cli[@]}" exec Database-Timescale test -f "$_candidate" 2>/dev/null; then
+    _migrations_file="$_candidate"
+    break
+  fi
+done
+if [ -z "$_migrations_file" ]; then
   log_error "schema_migrations.sql not found in Database-Timescale container"
   log_error "--- Diagnostic info ---"
   log_error "Host files: $(ls -la "$WORK_DIR/services/shared/database/" 2>&1)"
@@ -325,11 +339,32 @@ if ! "${docker_cli[@]}" exec Database-Timescale test -f /docker-entrypoint-initd
   exit 1
 fi
 log_info "Running schema migrations..."
-if ! "${docker_cli[@]}" exec Database-Timescale psql -v ON_ERROR_STOP=1 -U bleuser -d bledb -f /docker-entrypoint-initdb.d/schema_migrations.sql; then
-  log_error "Migrations failed"
+if ! "${docker_cli[@]}" exec Database-Timescale psql -v ON_ERROR_STOP=1 -U bleuser -d bledb -f "$_migrations_file"; then
+  log_error "Schema migrations failed"
   "${docker_cli[@]}" logs Database-Timescale --tail=50
   exit 1
 fi
+log_success "Schema migrations complete"
+
+# Run initial config (seeds factory defaults - idempotent)
+for _candidate in /docker-entrypoint-initdb.d/03_initial_config.sql /docker-entrypoint-initdb.d/initial_config.sql; do
+  if "${docker_cli[@]}" exec Database-Timescale test -f "$_candidate" 2>/dev/null; then
+    log_info "Running initial config defaults..."
+    "${docker_cli[@]}" exec Database-Timescale psql -v ON_ERROR_STOP=1 -U bleuser -d bledb -f "$_candidate" 2>&1 | grep -v "already exists" || true
+    break
+  fi
+done
+
+# Run config migrations
+for _candidate in /docker-entrypoint-initdb.d/04_config_migrations.sql /docker-entrypoint-initdb.d/config_migrations.sql; do
+  if "${docker_cli[@]}" exec Database-Timescale test -f "$_candidate" 2>/dev/null; then
+    log_info "Running config migrations..."
+    if ! "${docker_cli[@]}" exec Database-Timescale psql -v ON_ERROR_STOP=1 -U bleuser -d bledb -f "$_candidate"; then
+      log_warn "Config migrations failed (non-fatal on older schema)"
+    fi
+    break
+  fi
+done
 log_success "Migrations complete"
 
 # Verify critical tables exist

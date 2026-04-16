@@ -402,6 +402,21 @@ download_service_assets() {
     exit 1
   fi
 
+  # Download new config-system SQL files (added in feature/remove_config)
+  for new_file in initial_config.sql config_migrations.sql db_maintenance.sh; do
+    if [ -d "$database_dir/$new_file" ]; then
+      log_warn "Removing directory at $new_file path (Docker created it as dir)"
+      rm -rf "$database_dir/$new_file"
+    fi
+    if ! download_raw_file "$database_dir/$new_file" "RPI/services/shared/database/$new_file"; then
+      log_warn "Failed to download $new_file (non-fatal)"
+      touch "$database_dir/$new_file"
+    fi
+  done
+  if [ -f "$database_dir/db_maintenance.sh" ]; then
+    chmod +x "$database_dir/db_maintenance.sh"
+  fi
+
   # Download OTA update scripts
   local ota_dir="$WORK_DIR/services/ota"
   sudo mkdir -p "$ota_dir"
