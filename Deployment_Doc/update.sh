@@ -45,9 +45,9 @@ if not token:
       if 'token' in item and isinstance(item['token'], str) and item['token'].strip():
         token = item['token'].strip()
         break
-    stack.extend(item.values())
-  elif isinstance(item, list):
-    stack.extend(item)
+      stack.extend(item.values())
+    elif isinstance(item, list):
+      stack.extend(item)
 
 print(token)
 PY
