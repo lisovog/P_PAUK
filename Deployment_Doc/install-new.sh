@@ -61,6 +61,15 @@ refresh_auth_header
 
 log_info "Starting new device provisioning"
 
+# Configure passwordless sudo for the current user so that automated install
+# steps (apt-get, systemctl, docker) don't block on a password prompt.
+# This is safe on a dedicated IoT appliance — the device is single-purpose.
+if [ "$CURRENT_USER" != "root" ] && ! sudo -n true 2>/dev/null; then
+  log_info "Configuring passwordless sudo for '$CURRENT_USER' (required for unattended install)"
+  # Prompt once, then cache credentials and create a NOPASSWD rule
+  sudo sh -c "echo '${CURRENT_USER} ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/010_${CURRENT_USER}-nopasswd && chmod 0440 /etc/sudoers.d/010_${CURRENT_USER}-nopasswd"
+fi
+
 ensure_packages curl jq python3 python3-pip avahi-daemon avahi-utils libnss-mdns ca-certificates
 disable_ipv6
 install_docker_if_needed
@@ -176,13 +185,13 @@ else
 fi
 # Ensure tailscaled is running so the web UI can communicate via socket
 if command -v tailscaled >/dev/null 2>&1; then
-  systemctl enable --now tailscaled 2>/dev/null || true
+  sudo systemctl enable --now tailscaled 2>/dev/null || true
   # Enable Tailscale auto-updates
-  tailscale set --auto-update 2>/dev/null || true
+  sudo tailscale set --auto-update 2>/dev/null || true
 fi
 # Ensure the Tailscale socket directory exists (docker-compose bind mount
 # will fail if the host path is missing, even when Tailscale isn't set up yet)
-mkdir -p /var/run/tailscale
+sudo mkdir -p /var/run/tailscale
 
 log_info "Generating environment file from updated config"
 generate_env_file
@@ -305,8 +314,8 @@ if [ "$listen_addr" != "0.0.0.0" ] && [ "$listen_addr" != "*" ]; then
 fi
 log_success "Database network configuration verified"
 
-# Run initial schema
-if ! "${docker_cli[@]}" exec Database-Timescale test -f /docker-entrypoint-initdb.d/initial_schema.sql; then
+# Run initial schema (mounted as 01_initial_schema.sql by docker-compose)
+if ! "${docker_cli[@]}" exec Database-Timescale test -f /docker-entrypoint-initdb.d/01_initial_schema.sql; then
   log_error "initial_schema.sql not found in Database-Timescale container"
   log_error "--- Diagnostic info ---"
   log_error "Host files: $(ls -la "$WORK_DIR/services/shared/database/" 2>&1)"
@@ -317,26 +326,37 @@ if ! "${docker_cli[@]}" exec Database-Timescale test -f /docker-entrypoint-initd
   exit 1
 fi
 log_info "Running initial schema..."
-if ! "${docker_cli[@]}" exec Database-Timescale psql -v ON_ERROR_STOP=1 -U bleuser -d bledb -f /docker-entrypoint-initdb.d/initial_schema.sql 2>&1 | grep -v "already exists" | grep -v "ERROR.*relation.*already exists"; then
+if ! "${docker_cli[@]}" exec Database-Timescale psql -v ON_ERROR_STOP=1 -U bleuser -d bledb -f /docker-entrypoint-initdb.d/01_initial_schema.sql 2>&1 | grep -v "already exists" | grep -v "ERROR.*relation.*already exists"; then
   log_warn "Initial schema may have already been applied (this is OK on updates)"
 fi
 
 # Run migrations
-if ! "${docker_cli[@]}" exec Database-Timescale test -f /docker-entrypoint-initdb.d/schema_migrations.sql; then
+if ! "${docker_cli[@]}" exec Database-Timescale test -f /docker-entrypoint-initdb.d/02_schema_migrations.sql; then
   log_error "schema_migrations.sql not found in Database-Timescale container"
   exit 1
 fi
 log_info "Running schema migrations..."
-if ! "${docker_cli[@]}" exec Database-Timescale psql -v ON_ERROR_STOP=1 -U bleuser -d bledb -f /docker-entrypoint-initdb.d/schema_migrations.sql; then
+if ! "${docker_cli[@]}" exec Database-Timescale psql -v ON_ERROR_STOP=1 -U bleuser -d bledb -f /docker-entrypoint-initdb.d/02_schema_migrations.sql; then
   log_error "Migrations failed"
   "${docker_cli[@]}" logs Database-Timescale --tail=50
   exit 1
 fi
 log_success "Migrations complete"
 
+# Run config initialization (system_config table and default values)
+if "${docker_cli[@]}" exec Database-Timescale test -f /docker-entrypoint-initdb.d/03_initial_config.sql; then
+  log_info "Running config initialization..."
+  "${docker_cli[@]}" exec Database-Timescale psql -v ON_ERROR_STOP=1 -U bleuser -d bledb -f /docker-entrypoint-initdb.d/03_initial_config.sql 2>&1 | grep -v "already exists" || true
+fi
+if "${docker_cli[@]}" exec Database-Timescale test -f /docker-entrypoint-initdb.d/04_config_migrations.sql; then
+  log_info "Running config migrations..."
+  "${docker_cli[@]}" exec Database-Timescale psql -v ON_ERROR_STOP=1 -U bleuser -d bledb -f /docker-entrypoint-initdb.d/04_config_migrations.sql 2>&1 | grep -v "already exists" || true
+fi
+log_success "Database initialization complete"
+
 # Verify critical tables exist
 log_info "Verifying database schema..."
-required_tables=("mqtt_devices" "received_packets" "system_events")
+required_tables=("mqtt_devices" "received_packets" "system_events" "system_config")
 for table in "${required_tables[@]}"; do
   if ! "${docker_cli[@]}" exec Database-Timescale psql -U bleuser -d bledb -tAc "SELECT to_regclass('public.$table');" | grep -q "$table"; then
     log_error "Required table '$table' not found in database"
